@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+
+  --color-paper: #f3efe6;
+  --color-ink: #12211c;
+  --color-ink-soft: #24332d;
+  --color-muted: #5c6b64;
+  --color-line: #e0d8cb;
+  --color-card: #fffcf7;
+  --color-teal: #0f6e62;
+  --color-teal-deep: #0a4a43;
+  --color-teal-soft: #e5f3f0;
+  --color-clay: #c45c2a;
+  --color-clay-soft: #f8ebe3;
+
+  --radius-card: 1.25rem;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-teal);
+    outline-offset: 2px;
+  }
+}
+
+@keyframes shis-scan {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(8.5rem);
+  }
+}
+
+.scan-line {
+  animation: shis-scan 1s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
