@@ -44,6 +44,16 @@ async function readJson(path: string, init?: RequestInit) {
   return body as Record<string, unknown>;
 }
 
+export const openStaff = createServerFn({ method: "POST" })
+  .inputValidator((input: { name: string; password: string }) => input)
+  .handler(async ({ data }) =>
+    readJson("/staff/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+  );
+
 export const loadDesk = createServerFn({ method: "GET" }).handler(async () => {
   const [studentsBody, riskBody, visitsBody, reportsBody, absenceBody, impactBody] = await Promise.all([
     readJson("/students?status=active"),
@@ -76,6 +86,9 @@ export const addStudent = createServerFn({ method: "POST" })
       dateOfBirth?: string;
       bloodGroup?: string;
       medicalHistory?: string;
+      gender?: string;
+      heightCm?: string;
+      weightKg?: string;
       photo?: string;
     }) => input,
   )
@@ -100,6 +113,9 @@ export const saveProfile = createServerFn({ method: "POST" })
       dateOfBirth: string;
       bloodGroup: string;
       medicalHistory: string;
+      gender: string;
+      heightCm: string;
+      weightKg: string;
       photo: string;
     }) => input,
   )

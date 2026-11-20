@@ -2,7 +2,7 @@ import { aesDecrypt, aesEncrypt, deriveKey, makeDataKey, randomSalt, unwrapDataK
 import { seedVisits, STUDENTS, type Visit } from "@/lib/shis/model";
 
 export const DEMO_ROOM_CODE = "SHIS-ROOM";
-export const DEMO_PARENT_HINT = { id: "104821", code: "4821" };
+export const DEMO_PARENT_HINT = { id: "123456", code: "1234" };
 
 const PARENT_CODES: Record<string, string> = {
   "STU-10482": "HEAR-10482",

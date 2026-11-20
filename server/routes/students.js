@@ -46,28 +46,90 @@ function readStudent(body) {
   return { admissionNumber, name, schoolClass, section, phone, parentCode: phone.slice(-4) };
 }
 
+function measure(value, min, max, label) {
+  const text = String(value ?? "").trim();
+  if (!text) return { value: null };
+  const number = Number(text);
+  if (!Number.isFinite(number) || number < min || number > max) {
+    return { error: `${label} must be between ${min} and ${max}` };
+  }
+  return { value: Math.round(number * 10) / 10 };
+}
+
+function heightCm(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text) return { value: null };
+  if (/['′]|ft|feet|inch/.test(text)) return { error: "Height must be in centimetres" };
+  const height = measure(text.replace(/cm\s*$/i, ""), 40, 220, "Height (cm)");
+  if (height.error || height.value == null) return height;
+  return { value: Math.round(height.value) };
+}
+
+function weightKg(value) {
+  return measure(String(value ?? "").replace(/kg\s*$/i, ""), 5, 200, "Weight (kg)");
+}
+function storeDob(value) {
+  const text = String(value || "").trim();
+  if (!text) return { value: null };
+  const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(text);
+  if (!match) return { error: "Date of birth must be DD-MM-YYYY" };
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const real =
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  if (!real) return { error: "Date of birth must be DD-MM-YYYY" };
+  return { value: `${match[3]}-${match[2]}-${match[1]}` };
+}
+
+export function showDob(value) {
+  if (!value) return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const day = String(value.getUTCDate()).padStart(2, "0");
+    const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+    return `${day}-${month}-${value.getUTCFullYear()}`;
+  }
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+  if (iso) return `${iso[3]}-${iso[2]}-${iso[1]}`;
+  const shown = /^(\d{2})-(\d{2})-(\d{4})$/.exec(String(value).trim());
+  return shown ? shown[0] : "";
+}
 function readProfile(body) {
-  const dateOfBirth = String(body?.dateOfBirth || "").trim();
+  const born = storeDob(body?.dateOfBirth);
+  if (born.error) return { error: born.error };
   const bloodGroup = String(body?.bloodGroup || "").trim().slice(0, 12);
   const medicalHistory = String(body?.medicalHistory || "").trim().slice(0, 2000);
+  const gender = String(body?.gender || "").trim();
   const photo = String(body?.photo || "").trim();
-  if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
-    return { error: "Date of birth must be YYYY-MM-DD" };
+  const height = heightCm(body?.heightCm);
+  const weight = weightKg(body?.weightKg);
+  if (gender && !["Female", "Male", "Other"].includes(gender)) {
+    return { error: "Gender must be Female, Male, or Other" };
   }
+  if (height.error || weight.error) return { error: height.error || weight.error };
   if (photo && photo.length > 400000) return { error: "That photo is too large. Use a smaller image." };
   if (photo && !/^https?:\/\//i.test(photo) && !/^data:image\/(jpeg|png|webp);base64,/i.test(photo)) {
     return { error: "Photo must be a JPEG, PNG, or web image" };
   }
-  return { dateOfBirth: dateOfBirth || null, bloodGroup, medicalHistory, photo };
+  return {
+    dateOfBirth: born.value,
+    bloodGroup,
+    medicalHistory,
+    gender,
+    heightCm: height.value,
+    weightKg: weight.value,
+    photo,
+  };
 }
 
 async function insertStudent(row) {
   const inserted = await query(
     `insert into students (
        student_school_id, name, "class", section, status, enrolled_from, phone, parent_code,
-       date_of_birth, blood_group, medical_history, photo
+       date_of_birth, blood_group, medical_history, photo, gender, height_cm, weight_kg
      )
-     values ($1, $2, $3, $4, 'active', current_date, $5, $6, $7, $8, $9, $10)
+     values ($1, $2, $3, $4, 'active', current_date, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      on conflict (student_school_id) do nothing
      returning id, student_school_id, name, "class", section, status, parent_code`,
     [
@@ -81,6 +143,9 @@ async function insertStudent(row) {
       row.bloodGroup,
       row.medicalHistory,
       row.photo || null,
+      row.gender || "",
+      row.heightCm,
+      row.weightKg,
     ],
   );
   return inserted.rows[0] ?? null;
@@ -133,7 +198,16 @@ studentsRouter.post("/bulk", async (req, res, next) => {
         skipped.push({ line, error: row.error });
         continue;
       }
-      const student = await insertStudent({ ...row, dateOfBirth: null, bloodGroup: "", medicalHistory: "", photo: "" });
+      const student = await insertStudent({
+        ...row,
+        dateOfBirth: null,
+        bloodGroup: "",
+        medicalHistory: "",
+        photo: "",
+        gender: "",
+        heightCm: null,
+        weightKg: null,
+      });
       if (!student) skipped.push({ line, error: "Already on the list" });
       else added.push({ admissionNumber: student.student_school_id, name: student.name, parentCode: student.parent_code });
     }
@@ -143,11 +217,35 @@ studentsRouter.post("/bulk", async (req, res, next) => {
   }
 });
 
+function bmi(heightCm, weightKg) {
+  const height = Number(heightCm);
+  const weight = Number(weightKg);
+  if (!height || !weight) return "";
+  return (weight / (height / 100) ** 2).toFixed(1);
+}
+
+function childRecord(row) {
+  return {
+    name: row.name,
+    admissionNumber: row.student_school_id,
+    class: row.class,
+    section: row.section,
+    gender: row.gender || "",
+    dateOfBirth: showDob(row.date_of_birth),
+    bloodGroup: row.blood_group || "",
+    heightCm: row.height_cm == null ? "" : String(Math.round(Number(row.height_cm))),
+    weightKg: row.weight_kg == null ? "" : String(row.weight_kg),
+    bmi: bmi(row.height_cm, row.weight_kg),
+    medicalHistory: row.medical_history || "",
+    photo: row.photo || "",
+  };
+}
+
 studentsRouter.get("/profile", async (req, res, next) => {
   try {
     const admissionNumber = String(req.query.admission || "").trim();
     const result = await query(
-      `select name, student_school_id, "class", section, date_of_birth, blood_group, medical_history, photo
+      `select name, student_school_id, "class", section, date_of_birth, blood_group, medical_history, photo, gender, height_cm, weight_kg
        from students
        where student_school_id = $1 and status = 'active'`,
       [admissionNumber],
@@ -157,19 +255,7 @@ studentsRouter.get("/profile", async (req, res, next) => {
       res.status(404).json({ error: "No active student with that admission number" });
       return;
     }
-    const born = row.date_of_birth;
-    res.json({
-      child: {
-        name: row.name,
-        admissionNumber: row.student_school_id,
-        class: row.class,
-        section: row.section,
-        dateOfBirth: born ? (born instanceof Date ? born.toISOString().slice(0, 10) : String(born).slice(0, 10)) : "",
-        bloodGroup: row.blood_group || "",
-        medicalHistory: row.medical_history || "",
-        photo: row.photo || "",
-      },
-    });
+    res.json({ child: childRecord(row) });
   } catch (error) {
     next(error);
   }
@@ -193,10 +279,13 @@ studentsRouter.post("/profile", async (req, res, next) => {
            blood_group = $3,
            medical_history = $4,
            photo = case when $5 = '' then photo else $5 end,
+           gender = $6,
+           height_cm = $7,
+           weight_kg = $8,
            updated_at = now()
        where student_school_id = $1 and status = 'active'
        returning student_school_id, name`,
-      [admissionNumber, profile.dateOfBirth, profile.bloodGroup, profile.medicalHistory, profile.photo],
+      [admissionNumber, profile.dateOfBirth, profile.bloodGroup, profile.medicalHistory, profile.photo, profile.gender, profile.heightCm, profile.weightKg],
     );
     if (!updated.rows[0]) {
       res.status(404).json({ error: "No active student with that admission number" });

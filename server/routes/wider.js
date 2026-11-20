@@ -1,11 +1,18 @@
 import { Router } from "express";
 import { query } from "../db/pool.js";
 import { refreshClass } from "./risk.js";
-import { bunkingHint } from "./visits.js";
+import { showDob } from "./students.js";
 
 export const widerRouter = Router();
 
 const FEELINGS = new Set(["Headache", "Cough", "Stomach ache", "Tired", "Other"]);
+
+function bmi(heightCm, weightKg) {
+  const height = Number(heightCm);
+  const weight = Number(weightKg);
+  if (!height || !weight) return "";
+  return (weight / (height / 100) ** 2).toFixed(1);
+}
 
 widerRouter.get("/notices", async (req, res, next) => {
   try {
@@ -16,7 +23,8 @@ widerRouter.get("/notices", async (req, res, next) => {
       return;
     }
     const allowed = await query(
-      `select id, name, student_school_id, "class", section, date_of_birth, blood_group, medical_history, photo
+      `select id, name, student_school_id, "class", section, gender, date_of_birth, blood_group,
+              height_cm, weight_kg, medical_history, photo
        from students
        where student_school_id = $1 and parent_code = $2 and status = 'active'`,
       [studentSchoolId, code],
@@ -43,12 +51,12 @@ widerRouter.get("/notices", async (req, res, next) => {
         admissionNumber: child.student_school_id,
         class: child.class,
         section: child.section,
-        dateOfBirth: child.date_of_birth
-          ? (child.date_of_birth instanceof Date
-              ? child.date_of_birth.toISOString().slice(0, 10)
-              : String(child.date_of_birth).slice(0, 10))
-          : null,
+        gender: child.gender || "",
+        dateOfBirth: showDob(child.date_of_birth) || null,
         bloodGroup: child.blood_group || "",
+        heightCm: child.height_cm == null ? "" : String(Math.round(Number(child.height_cm))),
+        weightKg: child.weight_kg == null ? "" : String(child.weight_kg),
+        bmi: bmi(child.height_cm, child.weight_kg),
         medicalHistory: child.medical_history || "",
         photo: child.photo || "",
       },

@@ -15,8 +15,12 @@ type Child = {
   admissionNumber: string;
   class: string;
   section: string;
+  gender: string;
   dateOfBirth: string | null;
   bloodGroup: string;
+  heightCm: string;
+  weightKg: string;
+  bmi: string;
   medicalHistory: string;
   photo: string;
 };
@@ -37,9 +41,10 @@ export function ParentPanel({ embedded = false }: { embedded?: boolean }) {
   const [query, setQuery] = useState("");
   const [code, setCode] = useState("");
   const [studentId, setStudentId] = useState<string | null>(null);
-  const [classSection, setClassSection] = useState("");
   const [records, setRecords] = useState<Notice[] | null>(null);
   const [child, setChild] = useState<Child | null>(null);
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [openLog, setOpenLog] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   async function onCheck(event: React.FormEvent) {
@@ -47,6 +52,8 @@ export function ParentPanel({ embedded = false }: { embedded?: boolean }) {
     setError("");
     setRecords(null);
     setChild(null);
+    setLogsOpen(false);
+    setOpenLog(null);
     setStudentId(null);
     const id = query.trim().toUpperCase();
     try {
@@ -56,7 +63,6 @@ export function ParentPanel({ embedded = false }: { embedded?: boolean }) {
         child?: Child;
       };
       setStudentId(id);
-      setClassSection(opened.classKey || "");
       setChild(opened.child ?? null);
       setRecords(opened.notices ?? []);
     } catch (err) {
@@ -74,13 +80,28 @@ export function ParentPanel({ embedded = false }: { embedded?: boolean }) {
 
   return (
     <section id="notices">
+      {studentId && records ? (
+        <button
+          type="button"
+          className="mb-3 text-sm text-teal-deep"
+          onClick={() => {
+            setStudentId(null);
+            setRecords(null);
+            setChild(null);
+            setLogsOpen(false);
+            setOpenLog(null);
+          }}
+        >
+          Look up a different child
+        </button>
+      ) : (
       <form onSubmit={onCheck} className="rounded-card border border-line bg-card p-5">
         <label className="block">
           <span className="text-sm font-medium">Admission number</span>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={DEMO_PARENT_HINT.id}
+            placeholder={`eg: ${DEMO_PARENT_HINT.id}, etc.`}
             autoComplete="off"
             className="mt-2 w-full rounded-2xl border border-line bg-paper px-4 py-3 text-base"
           />
@@ -91,6 +112,7 @@ export function ParentPanel({ embedded = false }: { embedded?: boolean }) {
             value={code}
             onChange={(event) => setCode(event.target.value)}
             type="password"
+            placeholder={`eg: ${DEMO_PARENT_HINT.code}, etc.`}
             autoComplete="off"
             className="mt-2 w-full rounded-2xl border border-line bg-paper px-4 py-3 text-base"
           />
@@ -106,6 +128,7 @@ export function ParentPanel({ embedded = false }: { embedded?: boolean }) {
         ) : null}
         {error ? <p className="mt-3 text-sm text-clay">{error}</p> : null}
       </form>
+      )}
 
       {studentId && records ? (
         <div className="mt-4 grid gap-3">
@@ -125,70 +148,101 @@ export function ParentPanel({ embedded = false }: { embedded?: boolean }) {
                   </p>
                 </div>
               </div>
-              <dl className="mt-4 grid gap-3 text-sm">
-                <div>
-                  <dt className="text-muted">Date of birth</dt>
-                  <dd className="mt-1">{child.dateOfBirth || "Not recorded"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted">Blood group</dt>
-                  <dd className="mt-1">{child.bloodGroup || "Not recorded"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted">Known medical history</dt>
-                  <dd className="mt-1 whitespace-pre-wrap">{child.medicalHistory || "None recorded"}</dd>
-                </div>
-              </dl>
+              <div className="mt-4 grid gap-1 text-sm">
+                <p>
+                  <span className="text-muted">Name</span> — {child.name}
+                </p>
+                <p>
+                  <span className="text-muted">Gender</span> — {child.gender || "Not recorded"}
+                </p>
+                <p>
+                  <span className="text-muted">Date of birth</span> — {child.dateOfBirth ? child.dateOfBirth.replace(/^(\d{4})-(\d{2})-(\d{2}).*/, "$3-$2-$1") : "Not recorded"}
+                </p>
+                <p>
+                  <span className="text-muted">Blood group</span> — {child.bloodGroup || "Not recorded"}
+                </p>
+                <p>
+                  <span className="text-muted">Height</span> — {child.heightCm ? `${child.heightCm} cm` : "Not recorded"}
+                </p>
+                <p>
+                  <span className="text-muted">Weight</span> — {child.weightKg ? `${child.weightKg} kg` : "Not recorded"}
+                </p>
+                <p>
+                  <span className="text-muted">BMI</span> — {child.bmi || "Needs height and weight"}
+                </p>
+                <p>
+                  <span className="text-muted">Previously known diseases</span> — {child.medicalHistory || "None recorded"}
+                </p>
+              </div>
               <p className="mt-3 text-sm text-muted">Recorded by the school. This is not a new diagnosis.</p>
             </article>
           ) : null}
-          <p className="text-sm text-muted">
-            {classSection ? `Class ${classSection} · ` : ""}
-            {records.length} log{records.length === 1 ? "" : "s"}
-          </p>
-          {records.length === 0 ? (
-            <p className="rounded-card border border-line bg-card px-5 py-4 text-sm text-ink-soft">
-              Nothing logged yet. When the medical room sees your child, it shows here.
-            </p>
-          ) : (
-            records.map((visit) => (
-              <article key={visit.id} className="rounded-card border border-line bg-card p-5">
-                <p className="mt-1 text-sm text-muted">{new Date(visit.visited_at).toLocaleString()}</p>
-                {visit.parent_ack === "none" ? <p className="mt-1 text-sm text-clay">New medical-room log</p> : null}
-                <h2 className="mt-2 font-display text-2xl">{visit.symptoms.join(", ")}</h2>
-                {visit.alert_text ? <p className="mt-2 text-sm text-ink-soft">{visit.alert_text}</p> : null}
-                <dl className="mt-3 grid gap-3 text-sm">
-                  <div>
-                    <dt className="text-muted">Temperature</dt>
-                    <dd className="mt-1 text-ink">{visit.temperature || "Not taken"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted">Note</dt>
-                    <dd className="mt-1 text-ink">{visit.notes || "None"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted">What the room did</dt>
-                    <dd className="mt-1 text-ink-soft">{visit.action}</dd>
-                  </div>
-                </dl>
-                <div className="mt-4">
-                  <p className="text-sm font-medium">Your reply</p>
-                  <div className="mt-2 grid gap-2">
-                    {REPLIES.map(([ack, label]) => (
-                      <button
-                        key={ack}
-                        type="button"
-                        className={`rounded-xl border px-4 py-3 text-left text-sm ${visit.parent_ack === ack ? "border-teal bg-teal-soft" : "border-line bg-paper"}`}
-                        onClick={() => void onAck(visit.id, ack)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </article>
-            ))
-          )}
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-card border border-line bg-card px-5 py-4 text-left text-sm"
+            onClick={() => setLogsOpen((open) => !open)}
+          >
+            <span aria-hidden>{logsOpen ? "▾" : "▸"}</span>
+            Logs — {records.length}
+          </button>
+          {logsOpen ? (
+            records.length === 0 ? (
+              <p className="rounded-card border border-line bg-card px-5 py-4 text-sm text-ink-soft">
+                Nothing logged yet. When the medical room sees your child, it shows here.
+              </p>
+            ) : (
+              records.map((visit) => {
+                const open = openLog === visit.id;
+                return (
+                  <article key={visit.id} className="rounded-card border border-line bg-card">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 px-5 py-4 text-left"
+                      onClick={() => setOpenLog(open ? null : visit.id)}
+                    >
+                      <span aria-hidden>{open ? "▾" : "▸"}</span>
+                      <span>
+                        <span className="text-sm text-muted">{new Date(visit.visited_at).toLocaleString()}</span>
+                        <span className="mt-1 block font-medium">{visit.symptoms.join(", ")}</span>
+                      </span>
+                    </button>
+                    {open ? (
+                      <div className="border-t border-line px-5 py-4">
+                        {visit.parent_ack === "none" ? <p className="text-sm text-clay">New medical-room log</p> : null}
+                        {visit.alert_text ? <p className="mt-2 text-sm text-ink-soft">{visit.alert_text}</p> : null}
+                        <div className="mt-3 grid gap-1 text-sm">
+                          <p>
+                            <span className="text-muted">Temperature</span> — {visit.temperature || "Not taken"}
+                          </p>
+                          <p>
+                            <span className="text-muted">Note</span> — {visit.notes || "None"}
+                          </p>
+                          <p>
+                            <span className="text-muted">What the room did</span> — {visit.action}
+                          </p>
+                        </div>
+                        <div className="mt-4">
+                          <p className="text-sm font-medium">Your reply</p>
+                          <div className="mt-2 grid gap-2">
+                            {REPLIES.map(([ack, label]) => (
+                              <button
+                                key={ack}
+                                type="button"
+                                className={`rounded-xl border px-4 py-3 text-left text-sm ${visit.parent_ack === ack ? "border-teal bg-teal-soft" : "border-line bg-paper"}`}
+                                onClick={() => void onAck(visit.id, ack)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })
+            )
+          ) : null}
         </div>
       ) : null}
     </section>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SiteHeader } from "@/components/site-chrome";
 import { Button } from "@/components/site-chrome";
-import { addStudent, addStudents, approveVisit, loadDesk, loadPattern, loadProfile, recordMeasure, saveAbsence, saveProfile, saveVisit, setReportAside, verifyReport, type DeskClass, type DeskReport, type DeskStudent, type DeskVisit } from "@/lib/shis/desk";
+import { addStudent, addStudents, approveVisit, loadDesk, loadPattern, loadProfile, openStaff, recordMeasure, saveAbsence, saveProfile, saveVisit, setReportAside, verifyReport, type DeskClass, type DeskReport, type DeskStudent, type DeskVisit } from "@/lib/shis/desk";
 
 const SYMPTOMS = ["Cough", "Fever", "Headache", "Sore throat", "Stomach ache", "Cold"];
 const NOTES = ["Must see a doctor", "Healthy", "Bunking", "Provided medicine and in school"] as const;
@@ -12,6 +12,13 @@ function bothTemps(value: string, unit: "C" | "F") {
   const c = unit === "C" ? n : ((n - 32) * 5) / 9;
   const f = unit === "F" ? n : (n * 9) / 5 + 32;
   return `${c.toFixed(1)} °C / ${f.toFixed(1)} °F`;
+}
+
+function bmiLabel(height: string, weight: string) {
+  const h = Number(height);
+  const w = Number(weight);
+  if (!h || !w) return "Needs height and weight";
+  return (w / (h / 100) ** 2).toFixed(1);
 }
 
 export function CoreDesk() {
@@ -30,7 +37,10 @@ export function CoreDesk() {
   const [studentSection, setStudentSection] = useState("");
   const [phone, setPhone] = useState("");
   const [born, setBorn] = useState("");
+  const [gender, setGender] = useState("");
   const [blood, setBlood] = useState("");
+  const [height, setHeight] = useState("");
+  const [weight, setWeight] = useState("");
   const [history, setHistory] = useState("");
   const [photo, setPhoto] = useState("");
   const [photoShown, setPhotoShown] = useState("");
@@ -46,6 +56,9 @@ export function CoreDesk() {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
   const [busy, setBusy] = useState(false);
+  const [opened, setOpened] = useState(false);
+  const [staffName, setStaffName] = useState("");
+  const [staffPassword, setStaffPassword] = useState("");
 
   async function refresh() {
     const desk = await loadDesk();
@@ -59,8 +72,13 @@ export function CoreDesk() {
   }
 
   useEffect(() => {
-    void refresh().catch((err: Error) => setError(err.message));
+    if (sessionStorage.getItem("shis-staff") === "open") setOpened(true);
   }, []);
+
+  useEffect(() => {
+    if (!opened) return;
+    void refresh().catch((err: Error) => setError(err.message));
+  }, [opened]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -130,6 +148,59 @@ export function CoreDesk() {
     }
   }
 
+  if (!opened) {
+    return (
+      <div className="min-h-screen">
+        <div className="h-1 bg-teal" />
+        <SiteHeader />
+        <main className="mx-auto max-w-md px-4 py-10">
+          <p className="text-sm text-teal-deep">Medical room</p>
+          <h1 className="mt-1 font-display text-4xl font-medium tracking-tight">Authorization</h1>
+          <form
+            className="mt-6 rounded-card border border-line bg-card p-5"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setError("");
+              try {
+                await openStaff({ data: { name: staffName.trim(), password: staffPassword } });
+                sessionStorage.setItem("shis-staff", "open");
+                setStaffPassword("");
+                setOpened(true);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "That name and password do not open the medical room.");
+              }
+            }}
+          >
+            <label className="block text-sm">
+              Name
+              <input
+                value={staffName}
+                onChange={(event) => setStaffName(event.target.value)}
+                autoComplete="username"
+                className="mt-2 w-full rounded-2xl border border-line bg-paper px-4 py-3"
+              />
+            </label>
+            <label className="mt-4 block text-sm">
+              Password
+              <input
+                value={staffPassword}
+                onChange={(event) => setStaffPassword(event.target.value)}
+                type="password"
+                autoComplete="current-password"
+                className="mt-2 w-full rounded-2xl border border-line bg-paper px-4 py-3"
+              />
+            </label>
+            <Button type="submit" className="mt-4">
+              Open authorization
+            </Button>
+            <p className="mt-3 text-sm text-muted">Name medical. Password shis-room.</p>
+            {error ? <p className="mt-3 text-sm text-clay">{error}</p> : null}
+          </form>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       <div className="h-1 bg-teal" />
@@ -167,15 +238,21 @@ export function CoreDesk() {
                     setPhoto("");
                     void loadProfile({ data: { admissionNumber: student.student_school_id } })
                       .then((result) => {
-                        const child = (result as { child?: { dateOfBirth?: string; bloodGroup?: string; medicalHistory?: string; photo?: string } }).child;
+                        const child = (result as { child?: { dateOfBirth?: string; gender?: string; bloodGroup?: string; heightCm?: string; weightKg?: string; medicalHistory?: string; photo?: string } }).child;
                         setBorn(child?.dateOfBirth || "");
+                        setGender(child?.gender || "");
                         setBlood(child?.bloodGroup || "");
+                        setHeight(child?.heightCm || "");
+                        setWeight(child?.weightKg || "");
                         setHistory(child?.medicalHistory || "");
                         setPhotoShown(child?.photo || "");
                       })
                       .catch(() => {
                         setBorn("");
+                        setGender("");
                         setBlood("");
+                        setHeight("");
+                        setWeight("");
                         setHistory("");
                         setPhotoShown("");
                       });
@@ -217,20 +294,47 @@ export function CoreDesk() {
               <input
                 value={born}
                 onChange={(event) => setBorn(event.target.value)}
-                placeholder="Date of birth YYYY-MM-DD"
+                placeholder="Date of birth DD-MM-YYYY"
                 className="w-full rounded-2xl border border-line bg-paper px-4 py-3"
               />
+              <select
+                value={gender}
+                onChange={(event) => setGender(event.target.value)}
+                className="w-full rounded-2xl border border-line bg-paper px-4 py-3"
+              >
+                <option value="">Gender</option>
+                <option>Female</option>
+                <option>Male</option>
+                <option>Other</option>
+              </select>
               <input
                 value={blood}
                 onChange={(event) => setBlood(event.target.value)}
                 placeholder="Blood group"
                 className="w-full rounded-2xl border border-line bg-paper px-4 py-3"
               />
+              <input
+                value={height}
+                onChange={(event) => setHeight(event.target.value)}
+                inputMode="decimal"
+                placeholder="Height in cm"
+                className="w-full rounded-2xl border border-line bg-paper px-4 py-3"
+              />
+              <input
+                value={weight}
+                onChange={(event) => setWeight(event.target.value)}
+                inputMode="decimal"
+                placeholder="Weight in kg"
+                className="w-full rounded-2xl border border-line bg-paper px-4 py-3"
+              />
+              <p className="text-sm">
+                <span className="text-muted">BMI</span> — {bmiLabel(height, weight)}
+              </p>
               <textarea
                 value={history}
                 onChange={(event) => setHistory(event.target.value)}
                 rows={3}
-                placeholder={"Known medical history, one line each:\nAsthma\nPenicillin"}
+                placeholder={"Previously known diseases, one line each:\nAsthma\nPenicillin"}
                 className="w-full rounded-2xl border border-line bg-paper px-4 py-3 text-sm"
               />
               <label className="text-sm">
@@ -271,7 +375,10 @@ export function CoreDesk() {
                       data: {
                         admissionNumber: selectedId,
                         dateOfBirth: born.trim(),
+                        gender,
                         bloodGroup: blood.trim(),
+                        heightCm: height.trim(),
+                        weightKg: weight.trim(),
                         medicalHistory: history.trim(),
                         photo,
                       },
@@ -323,7 +430,10 @@ export function CoreDesk() {
                       setStudentSection("");
                       setPhone("");
                       setBorn("");
+                      setGender("");
                       setBlood("");
+                      setHeight("");
+                      setWeight("");
                       setHistory("");
                       setPhoto("");
                       setPhotoShown("");
@@ -430,8 +540,9 @@ export function CoreDesk() {
 
           <section className="rounded-card border border-line bg-card p-5">
             <h2 className="font-display text-2xl">3. Class review</h2>
+            {classes.some((room) => room.distinct3d > 0) ? (
             <ul className="mt-4 grid gap-3">
-              {classes.map((room) => (
+              {classes.filter((room) => room.distinct3d > 0).map((room) => (
                 <li key={room.classKey}>
                   <div className="flex items-center justify-between text-sm">
                     <span>Class {room.classKey}</span>
@@ -451,7 +562,11 @@ export function CoreDesk() {
                 </li>
               ))}
             </ul>
+            ) : (
+              <p className="mt-4 text-sm text-muted">No class flags yet.</p>
+            )}
             <h3 className="mt-6 text-sm font-medium">Latest visits</h3>
+            {visits.length === 0 ? <p className="mt-2 text-sm text-muted">No visits yet.</p> : null}
             <ul className="mt-2 grid gap-2 text-sm text-ink-soft">
               {visits.slice(0, 6).map((visit) => (
                 <li key={visit.id} className="flex flex-wrap items-center justify-between gap-2">

@@ -2,7 +2,6 @@ export const SITE = {
   name: "SHIS",
   fullName: "School Health Intelligence System",
   tagline: "Parents hear first.",
-  audience: "For any school",
 } as const;
 
 export const GITHUB = {

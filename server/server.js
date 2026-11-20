@@ -5,6 +5,7 @@ import { studentsRouter } from "./routes/students.js";
 import { visitsRouter } from "./routes/visits.js";
 import { riskRouter } from "./routes/risk.js";
 import { widerRouter } from "./routes/wider.js";
+import { staffRouter } from "./routes/staff.js";
 
 const databaseUrl = process.env.DATABASE_URL || "";
 if (databaseUrl.includes("127.0.0.1") || databaseUrl.includes("localhost")) {
@@ -59,6 +60,7 @@ function requireDatabase(_req, res, next) {
   next();
 }
 
+app.use("/staff", staffRouter);
 app.use("/students", requireDatabase, studentsRouter);
 app.use("/visits", requireDatabase, visitsRouter);
 app.use("/risk", requireDatabase, riskRouter);

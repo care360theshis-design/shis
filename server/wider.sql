@@ -54,5 +54,8 @@ alter table students add column if not exists date_of_birth date;
 alter table students add column if not exists blood_group text;
 alter table students add column if not exists medical_history text not null default '';
 alter table students add column if not exists photo text;
+alter table students add column if not exists gender text;
+alter table students add column if not exists height_cm numeric(5,1);
+alter table students add column if not exists weight_kg numeric(5,1);
 
 
